@@ -84,9 +84,9 @@ def cluster_places_by_distance(places):
             dist = haversine(coords[i], coords[j], unit=Unit.KILOMETERS)
             distance_matrix[i, j] = distance_matrix[j, i] = dist
 
-    clustering = AgglomerativeClustering(
+    clustering = AgglomerativeClustering( 
         n_clusters=None,
-        metric='precomputed',
+        metric='precomputed', # 使用預先計算的距離矩陣
         linkage='average',
         distance_threshold=DISTANCE_THRESHOLD_KM
     )
@@ -114,11 +114,11 @@ def refine_cluster_by_walking(cluster_places):
         return cluster_places
         
     try:
-        origin = f"place_id:{cluster_places[0]['place_id']}"
-        destination = f"place_id:{cluster_places[-1]['place_id']}"
-        waypoints = [f"place_id:{p['place_id']}" for p in cluster_places[1:-1]]
+        origin = f"place_id:{cluster_places[0]['place_id']}" # 起點
+        destination = f"place_id:{cluster_places[-1]['place_id']}" # 終點
+        waypoints = [f"place_id:{p['place_id']}" for p in cluster_places[1:-1]] #取中繼點
         
-        directions_result = gmaps.directions(
+        directions_result = gmaps.directions( # 使用 Directions API 規劃路徑
             origin=origin,
             destination=destination,
             waypoints=waypoints,
@@ -130,30 +130,30 @@ def refine_cluster_by_walking(cluster_places):
             print("    [警告] 無法規劃路徑，跳過此群組的精煉步驟。")
             return cluster_places
 
-        path_polyline = directions_result[0]['overview_polyline']['points']
+        path_polyline = directions_result[0]['overview_polyline']['points'] 
         path_coords = polyline.decode(path_polyline)
         
         if not path_coords:
             return cluster_places
 
-        anchor_point = np.mean(path_coords, axis=0)
-        anchor_lat, anchor_lng = anchor_point[0], anchor_point[1]
+        anchor_point = np.mean(path_coords, axis=0) 
+        anchor_lat, anchor_lng = anchor_point[0], anchor_point[1] # 取路徑中點作為參考點
         
         destination_place_ids = [f"place_id:{p['place_id']}" for p in cluster_places]
         
-        matrix_result = gmaps.distance_matrix(
+        matrix_result = gmaps.distance_matrix( # 使用 Distance Matrix API 計算步行時間
             origins=[(anchor_lat, anchor_lng)],
             destinations=destination_place_ids,
             mode="walking"
         )
         
         refined_places = []
-        if matrix_result['status'] == 'OK' and matrix_result['rows'][0]['elements']:
-            elements = matrix_result['rows'][0]['elements']
-            for i, place in enumerate(cluster_places):
+        if matrix_result['status'] == 'OK' and matrix_result['rows'][0]['elements']: 
+            elements = matrix_result['rows'][0]['elements'] # 取得從參考點到各地點的距離和時間
+            for i, place in enumerate(cluster_places): # 檢查每個地點的步行時間
                 if elements[i]['status'] == 'OK':
-                    duration_seconds = elements[i]['duration']['value']
-                    if duration_seconds <= WALKING_TIME_LIMIT_SECONDS:
+                    duration_seconds = elements[i]['duration']['value'] # 取得步行時間（秒）
+                    if duration_seconds <= WALKING_TIME_LIMIT_SECONDS: # 若在可接受範圍內，則保留
                         refined_places.append(place)
         
         return refined_places
@@ -211,8 +211,8 @@ def plan_optimal_itinerary(clusters, start_location, end_location, travel_mode="
     api_params = {'origins': point_coords, 'destinations': point_coords, 'mode': travel_mode}
     if travel_mode == 'transit':
         from datetime import datetime, timedelta
-        # 根據現在時間，規劃兩小時後的行程
-        departure_time = datetime.now() + timedelta(hours=2)
+        # 根據現在時間，規劃1小時後的行程
+        departure_time = datetime.now() + timedelta(hours=1)
         api_params['departure_time'] = departure_time
         print(f"  大眾運輸模式：已將出發時間設為 {departure_time.strftime('%Y-%m-%d %H:%M')} 以取得預估時間。")
 
@@ -296,7 +296,7 @@ def plan_optimal_itinerary(clusters, start_location, end_location, travel_mode="
             if not waypoints:
                 best_waypoint_order = []
             else:
-                 for p in permutations(waypoints):
+                 for p in permutations(waypoints): # 窮舉所有中繼點的排列組合
                     current_dist = haversine(entry_point['coords'], p[0]['coords'])
                     for j in range(len(p) - 1):
                         current_dist += haversine(p[j]['coords'], p[j+1]['coords'])
