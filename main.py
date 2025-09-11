@@ -65,23 +65,23 @@ def main():
 if __name__ == '__main__':
     main()
 '''
-# main.py (v6 - Corrected)
+# main.py (v7 - Corrected with Time Adjustment)
 """
 Main entry point for the application.
-Validates config settings and coordinates modules to complete the itinerary planning and visualization.
+Validates config settings and automatically adjusts the trip start time if it is in the past.
 """
 import time
 import config
 from google_api_service import GoogleApiService
-from planner import cluster_places_by_distance, refine_cluster_by_walking, plan_multi_day_itinerary
-from visualizer import create_multi_day_map
+from planner import cluster_places_by_distance, refine_cluster_by_walking, plan_multi_day_schedule, plan_optimized_route
+from visualizer import create_multi_day_map, create_route_map
+from datetime import datetime, timedelta
 
 def main():
     """Main function to run the trip planner."""
     # --- Configuration Validation ---
     print("--- Validating settings from config.py ---")
     valid_modes = ["driving", "walking", "bicycling", "transit"]
-    
     try:
         inter_mode = config.INTER_CLUSTER_TRAVEL_MODE.strip().lower()
         if inter_mode not in valid_modes:
@@ -96,6 +96,16 @@ def main():
         print(f"  [OK] Intra-cluster travel mode: {intra_mode}")
     except AttributeError as e:
         raise AttributeError(f"Configuration Error! Please ensure the variable exists in config.py. Details: {e}")
+
+    # --- This is the corrected section ---
+    # Automatically adjust the start time if the configured time is in the past
+    if config.PLANNING_MODE == 'time_aware' and config.TRIP_START_TIME < datetime.now():
+        print(f"  [Warning] The configured TRIP_START_TIME ({config.TRIP_START_TIME.strftime('%Y-%m-%d %H:%M')}) is in the past.")
+        # Adjust the start time to 5 minutes from the current time
+        adjusted_start_time = datetime.now().replace(second=0, microsecond=0) + timedelta(minutes=5)
+        config.TRIP_START_TIME = adjusted_start_time
+        print(f"  The trip will be rescheduled to start at {config.TRIP_START_TIME.strftime('%Y-%m-%d %H:%M')}")
+    # --- End of corrected section ---
 
     # --- Main Process ---
     start_time = time.time()
@@ -119,25 +129,44 @@ def main():
         if refined_cluster:
             final_clusters.append(refined_cluster)
 
-    itinerary_by_day, unvisited = plan_multi_day_itinerary(final_clusters, config, api_service)
-
     start_info = {'name': config.ITINERARY_START_LOCATION, 'coords': start_coords}
     end_info = {'name': config.ITINERARY_END_LOCATION, 'coords': end_coords}
-    create_multi_day_map(itinerary_by_day, start_info, end_info, config, api_service)
 
-    # --- Summary Output ---
-    print("\n==========================")
-    print("   Multi-Day Itinerary Plan Complete!")
-    print("==========================")
-    for i, day_plan in enumerate(itinerary_by_day):
-        print(f"\n--- Day {i+1} ({day_plan[0]['path'][0]['arrival'].strftime('%Y-%m-%d')}) ---")
-        for cluster_item in day_plan:
-            print(f"  [Cluster {cluster_item['cluster_id']}]")
-            for place_info in cluster_item['path']:
-                print(f"    - {place_info['arrival'].strftime('%H:%M')} - {place_info['departure'].strftime('%H:%M')}: {place_info['place']['original_name']}")
+    if config.PLANNING_MODE == 'time_aware':
+        print("\n--- Executing Mode: Time-Aware Multi-Day Schedule ---")
+        itinerary_by_day, unvisited = plan_multi_day_schedule(final_clusters, config, api_service)
+        create_multi_day_map(itinerary_by_day, start_info, end_info, config, api_service)
+        
+        print("\n==========================")
+        print("   Multi-Day Itinerary Plan Complete!")
+        print("==========================")
+        for i, day_plan in enumerate(itinerary_by_day):
+            print(f"\n--- Day {i+1} ({day_plan[0]['path'][0]['arrival'].strftime('%Y-%m-%d')}) ---")
+            for cluster_item in day_plan:
+                print(f"  [Cluster {cluster_item['cluster_id']}]")
+                for place_info in cluster_item['path']:
+                    print(f"    - {place_info['arrival'].strftime('%H:%M')} - {place_info['departure'].strftime('%H:%M')}: {place_info['place']['original_name']}")
     
+    elif config.PLANNING_MODE == 'location_only':
+        print("\n--- Executing Mode: Location-Only Optimal Route ---")
+        optimized_route, unvisited = plan_optimized_route(final_clusters, config, api_service)
+        create_route_map(optimized_route, start_info, end_info, config, api_service)
+        
+        print("\n==========================")
+        print("   Optimal Route Plan Complete!")
+        print("==========================")
+        place_counter = 0
+        for item in optimized_route:
+            print(f"\n--- Cluster {item['cluster_id']} ---")
+            for place in item['path']:
+                place_counter += 1
+                print(f"  {place_counter}. {place['original_name']}")
+
+    else:
+        raise ValueError(f"Error: Invalid PLANNING_MODE '{config.PLANNING_MODE}'. Please choose 'time_aware' or 'location_only' in config.py.")
+
     if unvisited:
-        print("\n[Warning] The following locations could not be scheduled due to time or opening hour constraints:")
+        print("\n[Warning] The following locations could not be scheduled:")
         for cluster in unvisited:
             for place in cluster:
                 print(f"  - {place['original_name']}")

@@ -42,6 +42,7 @@ BRUTE_FORCE_LIMIT = 9
 # 群組間的交通方式: "driving", "transit", "bicycling", "walking"
 INTER_CLUSTER_TRAVEL_MODE = "transit"
 '''
+'''
 # config.py (v3)
 """
 存放所有使用者可配置的參數。
@@ -90,3 +91,49 @@ INTER_CLUSTER_TRAVEL_MODE = "driving" # 使用開車的
 
 # [全新] 群組「內部」的交通方式
 INTRA_CLUSTER_TRAVEL_MODE = "walking" # 群內用走路的
+'''
+# config.py (v4)
+"""
+存放所有使用者可配置的參數。
+新增 PLANNING_MODE 來切換規劃模式。
+"""
+import os
+from dotenv import load_dotenv
+from datetime import datetime
+
+load_dotenv()
+
+# --- API 金鑰 ---
+API_KEY = os.getenv('GOOGLE_MAPS_API_KEY')
+if not API_KEY:
+    raise ValueError("請在 .env 檔案中設定 GOOGLE_MAPS_API_KEY")
+
+# --- [全新] 規劃模式選擇 ---
+# 'time_aware': 進行詳細的時間感知多日排程 (考慮營業時間、停留長度、自動分天)。
+# 'location_only': 僅進行地點分群與最佳路徑排序 (不考慮時間與營業時間)。
+PLANNING_MODE = 'location_only' # <--- 在這裡切換你想要的功能！
+
+# --- 使用者輸入 ---
+INPUT_LOCATIONS = [
+    "安可鐘", "維也納聖彼得教堂", "德梅爾咖啡店", "聖斯德望主教座堂", "奧地利國家圖書館",
+    "霍夫堡", "奧地利國會大廈", "Haus der Musik", 
+    "維也納博物館", "卡爾教堂", 
+    "美景宮", "Kunsthistorisches Museum Wien", "Naturhistorisches Museum Wien",
+    "維也ナ市政廳", "百水公寓"
+]
+ITINERARY_START_LOCATION = "smartments Wien Hauptbahnhof"
+ITINERARY_END_LOCATION = "smartments Wien Hauptbahnhof"
+
+# --- 時間設定 (僅在 'time_aware' 模式下生效) ---
+TRIP_START_TIME = datetime(2025, 9, 11, 9, 0)
+TRIP_END_TIME = datetime(2025, 9, 13, 22, 0)
+DAY_START_HOUR = 9
+DAY_END_HOUR = 22
+DEFAULT_STAY_DURATION_MINS = 90
+
+# --- 演算法與交通參數 ---
+DISTANCE_THRESHOLD_KM = 0.8
+WALKING_TIME_LIMIT_SECONDS = 10 * 60
+BRUTE_FORCE_LIMIT = 9
+INTER_CLUSTER_TRAVEL_MODE = "transit"
+INTRA_CLUSTER_TRAVEL_MODE = "walking"
