@@ -1,3 +1,4 @@
+'''
 # main.py (v2 - 修正版)
 """
 程式主入口。
@@ -59,6 +60,90 @@ def main():
     
     end_time = time.time()
     print(f"\n總執行時間: {end_time - start_time:.2f} 秒")
+
+
+if __name__ == '__main__':
+    main()
+'''
+# main.py (v6 - Corrected)
+"""
+Main entry point for the application.
+Validates config settings and coordinates modules to complete the itinerary planning and visualization.
+"""
+import time
+import config
+from google_api_service import GoogleApiService
+from planner import cluster_places_by_distance, refine_cluster_by_walking, plan_multi_day_itinerary
+from visualizer import create_multi_day_map
+
+def main():
+    """Main function to run the trip planner."""
+    # --- Configuration Validation ---
+    print("--- Validating settings from config.py ---")
+    valid_modes = ["driving", "walking", "bicycling", "transit"]
+    
+    try:
+        inter_mode = config.INTER_CLUSTER_TRAVEL_MODE.strip().lower()
+        if inter_mode not in valid_modes:
+            raise ValueError(f"Invalid setting! INTER_CLUSTER_TRAVEL_MODE value '{config.INTER_CLUSTER_TRAVEL_MODE}' is not a valid option.")
+        config.INTER_CLUSTER_TRAVEL_MODE = inter_mode
+        print(f"  [OK] Inter-cluster travel mode: {inter_mode}")
+
+        intra_mode = config.INTRA_CLUSTER_TRAVEL_MODE.strip().lower()
+        if intra_mode not in valid_modes:
+            raise ValueError(f"Invalid setting! INTRA_CLUSTER_TRAVEL_MODE value '{config.INTRA_CLUSTER_TRAVEL_MODE}' is not a valid option.")
+        config.INTRA_CLUSTER_TRAVEL_MODE = intra_mode
+        print(f"  [OK] Intra-cluster travel mode: {intra_mode}")
+    except AttributeError as e:
+        raise AttributeError(f"Configuration Error! Please ensure the variable exists in config.py. Details: {e}")
+
+    # --- Main Process ---
+    start_time = time.time()
+    api_service = GoogleApiService(config.API_KEY)
+
+    all_places = api_service.get_places_details(config.INPUT_LOCATIONS)
+    start_coords = api_service.get_geocode(config.ITINERARY_START_LOCATION)
+    end_coords = api_service.get_geocode(config.ITINERARY_END_LOCATION)
+
+    if not all_places or not start_coords or not end_coords:
+        print("Could not retrieve all necessary location information. Exiting program.")
+        return
+
+    initial_clusters = cluster_places_by_distance(all_places, config.DISTANCE_THRESHOLD_KM)
+    
+    final_clusters = []
+    print("\n--- Step 3: Refining clusters ---")
+    for i, cluster in enumerate(initial_clusters):
+        print(f"  Processing cluster {i} with {len(cluster)} locations...")
+        refined_cluster = refine_cluster_by_walking(cluster, api_service, config.WALKING_TIME_LIMIT_SECONDS)
+        if refined_cluster:
+            final_clusters.append(refined_cluster)
+
+    itinerary_by_day, unvisited = plan_multi_day_itinerary(final_clusters, config, api_service)
+
+    start_info = {'name': config.ITINERARY_START_LOCATION, 'coords': start_coords}
+    end_info = {'name': config.ITINERARY_END_LOCATION, 'coords': end_coords}
+    create_multi_day_map(itinerary_by_day, start_info, end_info, config, api_service)
+
+    # --- Summary Output ---
+    print("\n==========================")
+    print("   Multi-Day Itinerary Plan Complete!")
+    print("==========================")
+    for i, day_plan in enumerate(itinerary_by_day):
+        print(f"\n--- Day {i+1} ({day_plan[0]['path'][0]['arrival'].strftime('%Y-%m-%d')}) ---")
+        for cluster_item in day_plan:
+            print(f"  [Cluster {cluster_item['cluster_id']}]")
+            for place_info in cluster_item['path']:
+                print(f"    - {place_info['arrival'].strftime('%H:%M')} - {place_info['departure'].strftime('%H:%M')}: {place_info['place']['original_name']}")
+    
+    if unvisited:
+        print("\n[Warning] The following locations could not be scheduled due to time or opening hour constraints:")
+        for cluster in unvisited:
+            for place in cluster:
+                print(f"  - {place['original_name']}")
+    
+    end_time = time.time()
+    print(f"\nTotal execution time: {end_time - start_time:.2f} seconds")
 
 
 if __name__ == '__main__':

@@ -1,3 +1,4 @@
+'''
 # planner.py (v3 - 修正版)
 """
 包含所有行程規劃、分群、排序的核心演算法。
@@ -169,3 +170,163 @@ def plan_optimal_itinerary(clusters, start_coords, end_coords, api_service, trav
         print(f"  完成群組 {current_cluster_idx} 的內部路徑規劃。")
 
     return final_itinerary
+'''
+# planner.py (v5 - Corrected)
+"""
+Contains all core algorithms for itinerary planning, clustering, and sorting.
+All functions requiring API access now receive the api_service object.
+Restored the refine_cluster_by_walking function.
+"""
+import numpy as np
+from sklearn.cluster import AgglomerativeClustering
+from haversine import haversine, Unit
+from itertools import permutations
+import polyline
+from datetime import timedelta
+
+def cluster_places_by_distance(places, threshold_km):
+    """Clusters places based on geographical distance."""
+    print("\n--- Step 2: Performing initial spatial clustering ---")
+    if len(places) < 2:
+        return []
+
+    coords = np.array([p['coords'] for p in places])
+    n_points = len(places)
+    distance_matrix = np.zeros((n_points, n_points))
+    for i in range(n_points):
+        for j in range(i, n_points):
+            dist = haversine(coords[i], coords[j], unit=Unit.KILOMETERS)
+            distance_matrix[i, j] = distance_matrix[j, i] = dist
+
+    clustering = AgglomerativeClustering(
+        n_clusters=None, metric='precomputed', linkage='average', distance_threshold=threshold_km
+    )
+    labels = clustering.fit_predict(distance_matrix)
+    
+    grouped_places = {}
+    for i, place in enumerate(places):
+        label = labels[i]
+        if label not in grouped_places:
+            grouped_places[label] = []
+        grouped_places[label].append(place)
+    
+    print(f"  Clustering complete, formed {len(grouped_places)} groups.")
+    return list(grouped_places.values())
+
+def refine_cluster_by_walking(cluster_places, api_service, time_limit_seconds):
+    """Refines a single cluster based on a 15-minute walking radius from its path's anchor point."""
+    num_places = len(cluster_places)
+    if num_places <= 2:
+        return cluster_places
+    try:
+        origin = f"place_id:{cluster_places[0]['place_id']}"
+        destination = f"place_id:{cluster_places[-1]['place_id']}"
+        waypoints = [f"place_id:{p['place_id']}" for p in cluster_places[1:-1]]
+        
+        directions_result = api_service.gmaps.directions(
+            origin=origin, destination=destination, waypoints=waypoints,
+            mode="walking", optimize_waypoints=True
+        )
+        if not directions_result:
+            return cluster_places
+
+        path_coords = polyline.decode(directions_result[0]['overview_polyline']['points'])
+        if not path_coords:
+            return cluster_places
+
+        anchor_point = np.mean(path_coords, axis=0)
+        
+        destination_place_ids = [f"place_id:{p['place_id']}" for p in cluster_places]
+        
+        matrix_result = api_service.gmaps.distance_matrix(
+            origins=[(anchor_point[0], anchor_point[1])],
+            destinations=destination_place_ids,
+            mode="walking"
+        )
+        
+        refined_places = []
+        if matrix_result['status'] == 'OK' and matrix_result['rows'][0]['elements']:
+            elements = matrix_result['rows'][0]['elements']
+            for i, place in enumerate(cluster_places):
+                if elements[i]['status'] == 'OK':
+                    duration_seconds = elements[i]['duration']['value']
+                    if duration_seconds <= time_limit_seconds:
+                        refined_places.append(place)
+        return refined_places
+    except Exception as e:
+        print(f"    [Error] An error occurred while refining the cluster: {e}")
+        return cluster_places
+
+def plan_multi_day_itinerary(clusters, config, api_service):
+    """Re-architected planner that simulates the trip chronologically to create a multi-day schedule."""
+    print("\n--- Step 4: Planning the multi-day itinerary schedule ---")
+    if not clusters:
+        return [], []
+    
+    # This section for pre-calculating the optimal cluster order can be added back later for further optimization.
+    # For now, we process clusters in the order they are given to focus on time-based scheduling.
+    ordered_cluster_indices = list(range(len(clusters)))
+    
+    itinerary_by_day = []
+    unvisited_clusters = ordered_cluster_indices[:]
+    current_time = config.TRIP_START_TIME
+    
+    # Use the start location as the very first "last location"
+    last_location_coords = api_service.get_geocode(config.ITINERARY_START_LOCATION)
+
+    while current_time < config.TRIP_END_TIME and unvisited_clusters:
+        day_plan = []
+        day_start_time = current_time.replace(hour=config.DAY_START_HOUR, minute=0, second=0)
+        day_end_time = current_time.replace(hour=config.DAY_END_HOUR, minute=0, second=0)
+        current_time = max(current_time, day_start_time)
+
+        clusters_to_try_today = unvisited_clusters[:]
+        for cluster_idx in clusters_to_try_today:
+            cluster = clusters[cluster_idx]
+            
+            entry_point = min(cluster, key=lambda p: haversine(last_location_coords, p['coords']))
+            travel_matrix = api_service.get_distance_matrix(
+                [last_location_coords], [entry_point['coords']], config.INTER_CLUSTER_TRAVEL_MODE, current_time
+            )
+            
+            travel_duration_secs = travel_matrix['rows'][0]['elements'][0].get('duration', {}).get('value', 0)
+            arrival_time = current_time + timedelta(seconds=travel_duration_secs)
+
+            # This section for pre-calculating the internal path can be added back for further optimization
+            internal_path = cluster
+
+            temp_time = arrival_time
+            cluster_is_visitable = True
+            projected_path_with_time = []
+            
+            for i, place in enumerate(internal_path):
+                if i > 0:
+                    internal_travel_matrix = api_service.get_distance_matrix(
+                        [internal_path[i-1]['coords']], [place['coords']], config.INTRA_CLUSTER_TRAVEL_MODE, temp_time
+                    )
+                    internal_travel_secs = internal_travel_matrix['rows'][0]['elements'][0].get('duration', {}).get('value', 0)
+                    temp_time += timedelta(seconds=internal_travel_secs)
+                
+                if temp_time >= day_end_time or not api_service.is_open_at(place, temp_time):
+                    cluster_is_visitable = False
+                    break
+                
+                departure_time = temp_time + timedelta(minutes=config.DEFAULT_STAY_DURATION_MINS)
+                projected_path_with_time.append({"place": place, "arrival": temp_time, "departure": departure_time})
+                temp_time = departure_time
+            
+            if cluster_is_visitable and temp_time < day_end_time:
+                day_plan.append({
+                    "cluster_id": cluster_idx,
+                    "path": projected_path_with_time
+                })
+                current_time = temp_time
+                last_location_coords = projected_path_with_time[-1]['place']['coords']
+                unvisited_clusters.remove(cluster_idx)
+        
+        if day_plan:
+            itinerary_by_day.append(day_plan)
+        
+        current_time = (current_time + timedelta(days=1)).replace(hour=0, minute=0, second=0)
+
+    return itinerary_by_day, [clusters[i] for i in unvisited_clusters]
