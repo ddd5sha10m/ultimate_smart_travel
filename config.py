@@ -115,11 +115,12 @@ PLANNING_MODE = 'location_only' # <--- 在這裡切換你想要的功能！
 
 # --- 使用者輸入 ---
 INPUT_LOCATIONS = [
-    "安可鐘", "維也納聖彼得教堂", "德梅爾咖啡店", "聖斯德望主教座堂", "奧地利國家圖書館",
-    "霍夫堡", "奧地利國會大廈", "Haus der Musik", 
+    "安可鐘", "維也納聖彼得教堂", "德梅爾咖啡店"
+    , "聖斯德望主教座堂", "奧地利國家圖書館",
+    "霍夫堡", "奧地利國會大廈", "Haus der Musik",
     "維也納博物館", "卡爾教堂", 
     "美景宮", "Kunsthistorisches Museum Wien", "Naturhistorisches Museum Wien",
-    "維也ナ市政廳", "百水公寓"
+    "維也納市政廳", "百水公寓"
 ]
 ITINERARY_START_LOCATION = "smartments Wien Hauptbahnhof"
 ITINERARY_END_LOCATION = "smartments Wien Hauptbahnhof"

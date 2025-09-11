@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>你的專屬行程</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background-color: #f4f7f9; margin: 0; padding: 2em; }
+        .header { text-align: center; margin-bottom: 2em; }
+        h1, h2, h3, h4 { color: #333; }
+        .container { display: flex; gap: 2em; align-items: flex-start; }
+        .left-panel { flex: 1; min-width: 320px; max-height: 85vh; overflow-y: auto; background-color: white; padding: 1.5em; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .right-panel { flex: 3; height: 85vh; }
+        .right-panel iframe { width: 100%; height: 100%; border: none; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .btn-back { display: inline-block; margin-top: 1em; padding: 0.8em 1.5em; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px; font-weight: bold; }
+        ul { list-style: none; padding-left: 1em; }
+        li { margin-bottom: 0.5em; }
+        .warning { background-color: #fff3cd; border: 1px solid #ffeeba; padding: 1em; border-radius: 8px; margin-top: 1.5em; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>你的專屬行程規劃</h1>
+        <a href="/" class="btn-back">返回修改設定</a>
+    </div>
+
+    <div class="container">
+        <div class="left-panel">
+            <h2>行程總覽</h2>
+            
+            {% if planning_mode == 'time_aware' %}
+                {% for day_plan in itinerary_data %}
+                    <h3>Day {{ loop.index }} ({{ day_plan[0]['path'][0]['arrival'].strftime('%Y-%m-%d') }})</h3>
+                    {% for cluster_item in day_plan %}
+                        <h4 style="color:#666;">群組 {{ cluster_item.cluster_id }}</h4>
+                        <ul>
+                        {% for place_info in cluster_item.path %}
+                            <li><b>{{ place_info.arrival.strftime('%H:%M') }}</b>: {{ place_info.place.original_name }}</li>
+                        {% endfor %}
+                        </ul>
+                    {% endfor %}
+                {% endfor %}
+
+            {% elif planning_mode == 'location_only' %}
+                {% set place_counter = namespace(value=0) %}
+                {% for item in itinerary_data %}
+                    <h4>群組 {{ item.cluster_id }}</h4>
+                    <ul>
+                    {% for place in item.path %}
+                        {% set place_counter.value = place_counter.value + 1 %}
+                        <li><b>{{ place_counter.value }}.</b> {{ place.original_name }}</li>
+                    {% endfor %}
+                    </ul>
+                {% endfor %}
+            {% endif %}
+
+            {% if unvisited %}
+            <div class="warning">
+                <h4>⚠️ 部分景點未排入</h4>
+                <p>以下景點因時間或營業限制未能排入行程：</p>
+                <ul>
+                {% for cluster in unvisited %}
+                    {% for place in cluster %}
+                    <li>{{ place.original_name }}</li>
+                    {% endfor %}
+                {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="right-panel">
+            {{ map_html|safe }}
+        </div>
+    </div>
+</body>
+</html>

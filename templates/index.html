@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智慧行程規劃器</title>
+    <style>
+        /* --- 基本樣式 --- */
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background-color: #f4f7f9; margin: 0; padding: 2em; }
+        h1, h2 { color: #333; }
+        .container { display: flex; gap: 2em; }
+
+        /* --- 左右分欄 --- */
+        .left-panel, .right-panel { padding: 1.5em; background-color: white; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .left-panel { flex: 1; }
+        .right-panel { flex: 2; }
+
+        /* --- 表單元素樣式 --- */
+        .form-group { margin-bottom: 1.2em; }
+        label { display: block; margin-bottom: 0.5em; font-weight: bold; color: #555; }
+        input[type="text"], input[type="datetime-local"], input[type="number"], select, textarea {
+            width: 95%; padding: 0.8em; border: 1px solid #ccc; border-radius: 4px; font-size: 1em;
+        }
+        .input-group { display: flex; gap: 0.5em; }
+        .input-group input { flex-grow: 1; }
+        
+        /* --- 按鈕樣式 --- */
+        button {
+            padding: 0.8em 1.2em; border: none; border-radius: 4px; cursor: pointer; font-size: 1em;
+        }
+        .btn-add { background-color: #007bff; color: white; }
+        .btn-remove { background-color: #dc3545; color: white; font-size: 0.8em; padding: 0.3em 0.6em; }
+        .btn-submit { background-color: #28a745; color: white; width: 100%; padding: 1em; font-size: 1.2em; font-weight: bold; }
+
+        /* --- 地點清單 --- */
+        #location-list { list-style: none; padding: 0; margin-top: 1em; }
+        #location-list li {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 0.8em; background-color: #e9ecef; border-radius: 4px; margin-bottom: 0.5em;
+        }
+        
+        /* --- 提交後的訊息 --- */
+        .submitted-message { padding: 1em; background-color: #e6ffed; border: 1px solid #34c759; border-radius: 8px; margin-top: 1em; }
+    </style>
+</head>
+<body>
+
+    <h1>智慧行程規劃器</h1>
+
+    <form method="POST">
+        <div class="container">
+            <div class="left-panel">
+                <h2><span style="font-size: 1.5em;">📍</span> 想去的景點</h2>
+                <div class="form-group">
+                    <label for="location-input">輸入景點名稱後新增</label>
+                    <div class="input-group">
+                        <input type="text" id="location-input" placeholder="例如：維也納國家歌劇院">
+                        <button type="button" id="add-location-btn" class="btn-add">新增</button>
+                    </div>
+                </div>
+                <ul id="location-list">
+                    </ul>
+                <textarea name="locations_hidden" id="locations-hidden" style="display:none;"></textarea>
+            </div>
+
+            <div class="right-panel">
+                <h2><span style="font-size: 1.5em;">⚙️</span> 行程細節設定</h2>
+                
+                <div class="form-group">
+                    <label>規劃模式</label>
+                    <div>
+                        <input type="radio" id="mode-time" name="planning_mode" value="time_aware" checked>
+                        <label for="mode-time" style="display:inline; font-weight:normal;">詳細時間規劃</label>
+                    </div>
+                    <div>
+                        <input type="radio" id="mode-location" name="planning_mode" value="location_only">
+                        <label for="mode-location" style="display:inline; font-weight:normal;">純路徑安排</label>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="start-location">行程起點</label>
+                    <input type="text" id="start-location" name="start_location" value="smartments Wien Hauptbahnhof">
+                </div>
+                <div class="form-group">
+                    <label for="end-location">行程終點</label>
+                    <input type="text" id="end-location" name="end_location" value="smartments Wien Hauptbahnhof">
+                </div>
+                
+                <div id="time-settings">
+                    <div class="form-group">
+                        <label for="start-time">旅遊開始時間</label>
+                        <input type="datetime-local" id="start-time" name="start_time" value="2025-09-11T09:00">
+                    </div>
+                    <div class="form-group">
+                        <label for="end-time">旅遊結束時間</label>
+                        <input type="datetime-local" id="end-time" name="end_time" value="2025-09-13T22:00">
+                    </div>
+                    <div class="form-group">
+                        <label for="stay-duration">每個景點平均停留(分鐘)</label>
+                        <input type="number" id="stay-duration" name="stay_duration" value="90">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="inter-mode">群組間交通</label>
+                    <select id="inter-mode" name="inter_mode">
+                        <option value="transit" selected>大眾運輸</option>
+                        <option value="driving">開車</option>
+                        <option value="walking">步行</option>
+                        <option value="bicycling">騎腳踏車</option>
+                    </select>
+                </div>
+                 <div class="form-group">
+                    <label for="intra-mode">群組內交通</label>
+                    <select id="intra-mode" name="intra_mode">
+                        <option value="walking" selected>步行</option>
+                        <option value="transit">大眾運輸</option>
+                        <option value="driving">開車</option>
+                        <option value="bicycling">騎腳踏車</option>
+                    </select>
+                </div>
+
+                <button type="submit" class="btn-submit">規劃行程</button>
+
+                {% if submitted %}
+                <div class="submitted-message">
+                    <h3>表單已提交！</h3>
+                    <p>後端已收到你的設定，請查看你的終端機(Terminal)輸出。</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </form>
+    
+    <script>
+        // --- 左側面板互動功能 ---
+        const addBtn = document.getElementById('add-location-btn');
+        const locationInput = document.getElementById('location-input');
+        const locationList = document.getElementById('location-list');
+        // 這個隱藏的 textarea 是我們真正要提交給後端的資料
+        const locationsHidden = document.getElementById('locations-hidden');
+
+        // 更新隱藏的 textarea
+        function updateHiddenTextarea() {
+            const items = [];
+            locationList.querySelectorAll('li span').forEach(span => {
+                items.push(span.textContent);
+            });
+            // 使用換行符分隔每個地點
+            locationsHidden.value = items.join('\n');
+        }
+
+        // 新增地點
+        function addLocation() {
+            const locationName = locationInput.value.trim();
+            if (locationName) {
+                const li = document.createElement('li');
+                
+                const span = document.createElement('span');
+                span.textContent = locationName;
+                
+                const removeBtn = document.createElement('button');
+                removeBtn.textContent = '移除';
+                removeBtn.className = 'btn-remove';
+                removeBtn.type = 'button';
+                removeBtn.onclick = function() {
+                    li.remove();
+                    updateHiddenTextarea();
+                };
+                
+                li.appendChild(span);
+                li.appendChild(removeBtn);
+                locationList.appendChild(li);
+                
+                locationInput.value = '';
+                updateHiddenTextarea();
+            }
+            locationInput.focus();
+        }
+
+        addBtn.addEventListener('click', addLocation);
+        locationInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault(); // 防止表單提交
+                addLocation();
+            }
+        });
+
+        // --- 右側面板互動功能 ---
+        const timeSettingsDiv = document.getElementById('time-settings');
+        document.querySelectorAll('input[name="planning_mode"]').forEach(radio => {
+            radio.addEventListener('change', function() {
+                if (this.value === 'location_only') {
+                    timeSettingsDiv.style.display = 'none';
+                } else {
+                    timeSettingsDiv.style.display = 'block';
+                }
+            });
+        });
+        
+        // 解決隱藏 textarea 在提交時的問題
+        document.querySelector('form').addEventListener('submit', function() {
+            // 在提交前，我們將隱藏的 textarea 的 name 改為後端預期的 'locations'
+            // 這樣 getlist('locations') 才能正確抓到
+            locationsHidden.name = 'locations';
+        });
+
+    </script>
+</body>
+</html>
