@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <title>智慧行程規劃器</title>
     <style>
         /* --- 基本樣式 --- */
@@ -44,7 +45,6 @@
     </style>
 </head>
 <body>
-
     <h1>智慧行程規劃器</h1>
 
     <form method="POST">
@@ -54,7 +54,7 @@
                 <div class="form-group">
                     <label for="location-input">輸入景點名稱後新增</label>
                     <div class="input-group">
-                        <input type="text" id="location-input" placeholder="例如：維也納國家歌劇院">
+                        <input type="text" id="location-input" placeholder="例如：中正紀念堂">
                         <button type="button" id="add-location-btn" class="btn-add">新增</button>
                     </div>
                 </div>
@@ -80,21 +80,21 @@
 
                 <div class="form-group">
                     <label for="start-location">行程起點</label>
-                    <input type="text" id="start-location" name="start_location" value="smartments Wien Hauptbahnhof">
+                    <input type="text" id="start-location" name="start_location" placeholder="你想從哪開始？">
                 </div>
                 <div class="form-group">
                     <label for="end-location">行程終點</label>
-                    <input type="text" id="end-location" name="end_location" value="smartments Wien Hauptbahnhof">
+                    <input type="text" id="end-location" name="end_location" placeholder="你想在哪結束？">
                 </div>
                 
                 <div id="time-settings">
                     <div class="form-group">
                         <label for="start-time">旅遊開始時間</label>
-                        <input type="datetime-local" id="start-time" name="start_time" value="2025-09-11T09:00">
+                        <input type="text" id="start-time" name="start_time" value="{{ default_start_time }}">
                     </div>
                     <div class="form-group">
                         <label for="end-time">旅遊結束時間</label>
-                        <input type="datetime-local" id="end-time" name="end_time" value="2025-09-13T22:00">
+                        <input type="text" id="end-time" name="end_time" value="{{ default_end_time }}">
                     </div>
                     <div class="form-group">
                         <label for="stay-duration">每個景點平均停留(分鐘)</label>
@@ -206,6 +206,19 @@
             locationsHidden.name = 'locations';
         });
 
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script>
+        const flatpickrOptions = {
+    enableTime: true,       // 啟用時間選擇功能
+    dateFormat: "Y-m-d H:i",  // 設定日期時間的格式，例如 "2025-09-27 11:30"
+    time_24hr: true,        // 使用 24 小時制
+    minuteIncrement: 30,    // 【關鍵】時間的下拉間隔，設為 30 代表每半小時一個選項
+    locale: "zh_tw"         // (可選) 如果想讓介面變中文，需要額外引入語系檔
+    };
+    // 將設定應用到我們的兩個輸入框上
+    flatpickr("#start-time", flatpickrOptions);
+    flatpickr("#end-time", flatpickrOptions);
     </script>
 </body>
 </html>
